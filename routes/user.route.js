@@ -1,0 +1,11 @@
+import express from "express";
+import { createUser, loginUser } from "../services/user.service.js";
+const router = express.Router();
+router.post("/user/register", createUser);
+router.post("/user/login", loginUser);
+// router.get("/user/:id", getSingleUser);
+// router.get("/users", getUsers);
+// router.put("/user/:id", editUser);
+// router.patch("/user/:id", editUserPart);
+// router.delete("/user/delete", deleteUser);
+export default router;
