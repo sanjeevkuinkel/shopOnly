@@ -1,6 +1,6 @@
 import Joi from "joi";
 import passwordComplexity from "joi-password-complexity";
-const userValidationSchema = Joi.object({
+const registerUserValidationSchema = Joi.object({
   username: Joi.string().required().trim().min(5).max(20),
   email: Joi.string().email().required().trim().min(5).max(55).lowercase(),
   password: passwordComplexity({
@@ -21,4 +21,20 @@ const userValidationSchema = Joi.object({
   location: Joi.string().required().trim().min(2).max(55),
   role: Joi.string().required().trim().valid("buyer", "seller", "admin"),
 });
-export { userValidationSchema };
+const loginCredentialsValidationSchema = Joi.object({
+  email: Joi.string().email().required().trim().lowercase(),
+  password: Joi.string().required().trim(),
+});
+const updateUserValidationSchema = Joi.object({
+  password: Joi.string().required(),
+  gender: Joi.string()
+    .required()
+    .trim()
+    .valid("male", "female", "preferNotToSay"),
+  location: Joi.string().required().trim().min(2).max(55),
+});
+export {
+  registerUserValidationSchema,
+  loginCredentialsValidationSchema,
+  updateUserValidationSchema,
+};
