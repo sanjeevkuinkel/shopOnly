@@ -10,6 +10,7 @@ import { generateTokens } from "../utils/token.js";
 import { RefreshToken } from "../models/refresh.token.model.js";
 import { checkMongoIdValidation } from "../middlewares/mongoIdValidator.js";
 import { Cart } from "../models/cart.model.js";
+import { BlacklistedToken } from "../models/blacklist.token.model.js";
 const createUser = async (req, res) => {
   const newUser = req.body;
   try {
@@ -172,6 +173,21 @@ const addToCart = async (req, res) => {
       .json({ message: "Error adding to cart", error: error.message });
   }
 };
+const logoutUser = async (req, res) => {
+  try {
+    const authorization = req?.headers?.authorization;
+    const splittedArray = authorization?.split(" ");
+    const token = splittedArray?.length === 2 && splittedArray[1];
+    if (!token) {
+      return res.status(401).send({ message: "Unauthorized. Token missing." });
+    }
+    // Store token in DB (Optional) - Prevent Reuse
+    await BlacklistedToken.create({ token });
+    res.json({ message: "Logged out successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Logout failed" });
+  }
+};
 
 export {
   createUser,
@@ -181,4 +197,5 @@ export {
   getUsers,
   getSingleUser,
   addToCart,
+  logoutUser,
 };
