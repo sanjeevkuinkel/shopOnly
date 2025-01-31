@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import {
   loginCredentialsValidationSchema,
   registerUserValidationSchema,
+  resetPasswordValidationSchema,
   updateUserValidationSchema,
 } from "../middlewares/user.validation.js";
 import { User } from "../models/user.model.js";
@@ -11,6 +12,9 @@ import { RefreshToken } from "../models/refresh.token.model.js";
 import { checkMongoIdValidation } from "../middlewares/mongoIdValidator.js";
 import { Cart } from "../models/cart.model.js";
 import { BlacklistedToken } from "../models/blacklist.token.model.js";
+import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer";
+import { text } from "express";
 const createUser = async (req, res) => {
   const newUser = req.body;
   try {
@@ -188,7 +192,93 @@ const logoutUser = async (req, res) => {
     res.status(500).json({ message: "Logout failed" });
   }
 };
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res
+        .status(400)
+        .send({ message: "Please provide registered email." });
+    }
+    const user = await User.findOne({ email });
+    if (!user) {
+      res.status(404).send({ message: "User does not exist,please register." });
+    }
+    const token = jwt.sign(
+      { email },
+      process.env.JWT_FORGOT_PASSWORD_SECRET_KEY,
+      { expiresIn: "1h" }
+    );
+    const expires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    // Update user document with token and expiration
+    user.passwordResetToken = token;
+    user.passwordResetExpires = expires;
 
+    await user.save();
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      secure: true,
+      auth: {
+        user: process.env.MY_EMAIL,
+        pass: process.env.MY_PASS,
+      },
+    });
+    const resetLink = `${process.env.CLIENT_URL}/user/reset-password/${token}`;
+    const receiver = {
+      from: process.env.MY_EMAIL,
+      to: email,
+      subject: "Password Reset Request",
+      text: `We have received a password reset request. Please use the link below to reset your password:\n\n${resetLink}\n\nThis reset link will be valid only for 10 minutes.`,
+    };
+    await transporter.sendMail(receiver);
+    return res.status(200).send({
+      message:
+        "Password reset link send successfully on your registered email.",
+    });
+  } catch (error) {
+    return res.status(500).send({ message: "Something went wrong." });
+  }
+};
+const resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+    const isValidPassword = await resetPasswordValidationSchema.validateAsync(
+      req.body
+    );
+    if (!isValidPassword) {
+      return res.status(400).send({ message: "Please provide the password" });
+    }
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_FORGOT_PASSWORD_SECRET_KEY
+    );
+    const user = await User.findOne({ email: decoded.email });
+    if (!user) {
+      return res.status(404).send({ message: "User not found." });
+    }
+    // Check if the reset token is still valid
+    if (
+      !user.passwordResetToken ||
+      !user.passwordResetExpires ||
+      Date.now() > user.passwordResetExpires
+    ) {
+      return res.status(400).send({ message: "Invalid or expired token." });
+    }
+    const newHashPassword = await bcrypt.hash(password, 10);
+    user.password = newHashPassword;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    user.passwordChangedAt = Date.now();
+    await user.save();
+    return res
+      .status(200)
+      .send({ message: "Password reset successfully.    " });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send({ message: "Something went wrong." });
+  }
+};
 export {
   createUser,
   loginUser,
@@ -198,4 +288,6 @@ export {
   getSingleUser,
   addToCart,
   logoutUser,
+  forgotPassword,
+  resetPassword,
 };

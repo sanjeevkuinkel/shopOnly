@@ -3,10 +3,12 @@ import {
   addToCart,
   createUser,
   deleteUserAndData,
+  forgotPassword,
   getSingleUser,
   getUsers,
   loginUser,
   logoutUser,
+  resetPassword,
   updateUserDetails,
 } from "../services/user.service.js";
 import { refreshAccessToken } from "../services/refresh.token.js";
@@ -22,5 +24,8 @@ router.post("/user/logout", isUser, logoutUser);
 // router.post("/:userId/add", isBuyer, addToCart);
 router.get("/user/:id", isAdmin, getSingleUser);
 router.delete("/user/delete/:id", isAdmin, deleteUserAndData);
+
+router.post("/user/forgot-password", forgotPassword);
+router.post("/user/reset-password/:token", resetPassword);
 
 export default router;

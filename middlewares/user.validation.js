@@ -33,8 +33,21 @@ const updateUserValidationSchema = Joi.object({
     .valid("male", "female", "preferNotToSay"),
   location: Joi.string().required().trim().min(2).max(55),
 });
+// Password reset validation schema
+const resetPasswordValidationSchema = Joi.object({
+  password: passwordComplexity({
+    min: 8,
+    max: 20,
+    lowerCase: 1,
+    upperCase: 1,
+    symbol: 1,
+    requirementCount: 4,
+  }).required(),
+});
+
 export {
   registerUserValidationSchema,
   loginCredentialsValidationSchema,
   updateUserValidationSchema,
+  resetPasswordValidationSchema,
 };

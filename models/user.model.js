@@ -55,6 +55,15 @@ const userSchema = new mongoose.Schema(
       enum: ["buyer", "seller", "admin"],
       default: "user",
     },
+    passwordResetToken: {
+      type: String, // This will store the reset token
+    },
+    passwordResetExpires: {
+      type: Date, // This will store the expiration date of the token
+    },
+    passwordChangedAt: {
+      type: Date, // This will store when the password was last changed
+    },
   },
   {
     timestamps: true,
