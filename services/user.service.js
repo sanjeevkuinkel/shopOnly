@@ -279,6 +279,14 @@ const resetPassword = async (req, res) => {
     return res.status(500).send({ message: "Something went wrong." });
   }
 };
+const uploadProfilePicture = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).send("No file uploaded.");
+  }
+  const filePath = `../uploads${req.file.filename}`;
+  res.send(`File uploaded successfully. Path: ${filePath}`);
+};
+
 export {
   createUser,
   loginUser,
@@ -290,4 +298,5 @@ export {
   logoutUser,
   forgotPassword,
   resetPassword,
+  uploadProfilePicture,
 };

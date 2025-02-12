@@ -10,9 +10,11 @@ import {
   logoutUser,
   resetPassword,
   updateUserDetails,
+  uploadProfilePicture,
 } from "../services/user.service.js";
 import { refreshAccessToken } from "../services/refresh.token.js";
 import { isAdmin, isBuyer, isUser } from "../middlewares/auth.middleware.js";
+import upload from "../config/upload.js";
 const router = express.Router();
 router.post("/user/register", createUser);
 router.post("/user/login", loginUser);
@@ -27,5 +29,10 @@ router.delete("/user/delete/:id", isAdmin, deleteUserAndData);
 
 router.post("/user/forgot-password", forgotPassword);
 router.post("/user/reset-password/:token", resetPassword);
+router.post(
+  "/upload-profile-picture",
+  upload.single("profilePicture"),
+  uploadProfilePicture
+);
 
 export default router;
