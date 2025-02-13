@@ -14,6 +14,7 @@ import { Cart } from "../models/cart.model.js";
 import { BlacklistedToken } from "../models/blacklist.token.model.js";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
+import { UserActivity } from "../models/user.activity.model.js";
 const createUser = async (req, res) => {
   const newUser = req.body;
   try {
@@ -58,6 +59,11 @@ const loginUser = async (req, res) => {
   const { accessToken, refreshToken } = generateTokens(user);
   user.password = undefined;
   await RefreshToken.create({ token: refreshToken, userId: user._id });
+  const activity = new UserActivity({
+    userId: user._id,
+    activityType: "login",
+  });
+  await activity.save();
   res.status(200).send({ user, refreshToken, accessToken });
 };
 const updateUserDetails = async (req, res) => {
@@ -150,8 +156,17 @@ const logoutUser = async (req, res) => {
     }
     // Store token in DB (Optional) - Prevent Reuse
     await BlacklistedToken.create({ token });
+    // Log the logout activity
+
+    const activity = await UserActivity.create({
+      userId: req.userInfo._id,
+      activityType: "logout",
+    });
+    await activity.save();
+
     res.json({ message: "Logged out successfully" });
   } catch (error) {
+    console.error("Logout error:", error);
     res.status(500).json({ message: "Logout failed" });
   }
 };
