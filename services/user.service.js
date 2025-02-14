@@ -28,6 +28,14 @@ const createUser = async (req, res) => {
       .status(409)
       .send({ message: "User with this email already exists." });
   }
+  const existingUserByUsername = await User.findOne({
+    username: newUser.username,
+  });
+  if (existingUserByUsername) {
+    return res
+      .status(409)
+      .send({ message: "User with this username already exists." });
+  }
   const hashedPassword = await bcrypt.hash(newUser.password, 10);
   newUser.password = hashedPassword;
 
