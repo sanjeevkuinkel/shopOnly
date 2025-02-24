@@ -15,6 +15,21 @@ import { BlacklistedToken } from "../models/blacklist.token.model.js";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import { UserActivity } from "../models/user.activity.model.js";
+import { transporter } from "../utils/transporter.js";
+import rateLimit from "express-rate-limit";
+// Configure rate limiter: max 5 attempts per IP in 15 minutes
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minute window
+  max: 5, // Limit each IP to 5 login attempts
+  message: {
+    status: 429,
+    message:
+      "Too many login attempts from this IP, please try again after 15 minutes",
+  },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
 const createUser = async (req, res) => {
   const newUser = req.body;
   try {
@@ -45,33 +60,82 @@ const createUser = async (req, res) => {
     .status(201)
     .send({ message: "User Registered Successfully", registerUser });
 };
+
 const loginUser = async (req, res) => {
   const loginCredentials = req.body;
+
+  // Validate input
   try {
     await loginCredentialsValidationSchema.validateAsync(loginCredentials);
   } catch (error) {
     return res.status(400).send({ message: error.message });
   }
+
+  // Find user
   const user = await User.findOne({ email: loginCredentials.email });
   if (!user) {
     return res.status(409).send({ message: "Invalid Credentials." });
   }
-  const passwordMatch = await bcrypt.compare(
-    //either return true or false
-    loginCredentials.password, //plain
-    user.password //hashed
-  );
-  if (!passwordMatch) {
-    return res.status(404).send({ message: "Invalid Credentials." });
+
+  // Check if account is locked - this takes precedence
+  if (user.locked) {
+    return res.status(403).send({
+      message:
+        "Account is locked due to multiple failed login attempts. Please contact support to unlock your account.",
+    });
   }
+
+  // Verify password (only if not locked)
+  const passwordMatch = await bcrypt.compare(
+    loginCredentials.password,
+    user.password
+  );
+
+  if (!passwordMatch) {
+    // Increment failed attempts
+    user.loginAttempts = (user.loginAttempts || 0) + 1;
+
+    if (user.loginAttempts >= 5) {
+      user.locked = true;
+
+      // Use existing transporter from user service
+      try {
+        await transporter.sendMail({
+          from: process.env.MY_EMAIL,
+          to: user.email,
+          subject: "Account Locked - Security Alert",
+          text: `Your account has been locked due to 5 failed login attempts. 
+                   Please contact support to unlock your account.`,
+        });
+      } catch (emailError) {
+        console.error("Failed to send lockout email:", emailError);
+      }
+    }
+
+    await user.save();
+
+    return res.status(401).send({
+      message: "Invalid Credentials.",
+      attemptsRemaining: Math.max(5 - user.loginAttempts, 0),
+    });
+  }
+
+  // Successful login - reset attempts only, not locked status
+  user.loginAttempts = 0;
+  await user.save();
+
+  // Generate tokens and log activity
   const { accessToken, refreshToken } = generateTokens(user);
   user.password = undefined;
+
   await RefreshToken.create({ token: refreshToken, userId: user._id });
+
   const activity = new UserActivity({
     userId: user._id,
     activityType: "login",
   });
   await activity.save();
+
   res.status(200).send({ user, refreshToken, accessToken });
 };
 const updateUserDetails = async (req, res) => {
@@ -201,14 +265,6 @@ const forgotPassword = async (req, res) => {
     user.passwordResetExpires = expires;
 
     await user.save();
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      secure: true,
-      auth: {
-        user: process.env.MY_EMAIL,
-        pass: process.env.MY_PASS,
-      },
-    });
     const resetLink = `${process.env.CLIENT_URL}/user/reset-password/${token}`;
     const receiver = {
       from: process.env.MY_EMAIL,

@@ -17,6 +17,8 @@ const userSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
     },
+    loginAttempts: { type: Number, default: 0 },
+    locked: { type: Boolean, default: false },
     firstName: {
       type: String,
       required: true,

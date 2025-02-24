@@ -16,6 +16,9 @@ const generateCacheKey = (input) => {
     category?.join(",") || ""
   }:${page}:${limit}`;
 };
+client.on("connect", () => {
+  console.log("✅ Connected to Redis");
+});
 client.on("error", (err) => {
   console.error("❌ Redis error:", err);
 });
@@ -24,7 +27,7 @@ client.on("error", (err) => {
 client
   .connect()
   .then(() => {
-    console.log("✅ Connected to Redis");
+    console.log("✅ Redis client is ready");
   })
   .catch((err) => {
     console.error("❌ Failed to connect to Redis:", err);
@@ -32,7 +35,9 @@ client
 const createProduct = async (req, res) => {
   const newProduct = req.body;
   try {
-    await addProductValidationSchema.validateAsync(newProduct);
+    await addProductValidationSchema.validateAsync(newProduct, {
+      stripUnknown: true,
+    });
   } catch (error) {
     return res.status(400).send({ message: error.message });
   }
@@ -215,8 +220,12 @@ const getBuyerProduct = async (req, res) => {
     // Prepare response data
     const responseData = { products, totalPage };
 
-    // Store data in Redis cache with a 10-minute expiration
-    await client.setEx(cacheKey, 600, JSON.stringify(responseData));
+    try {
+      await client.setEx(cacheKey, 600, JSON.stringify(responseData));
+      console.log("✅ Data stored in Redis");
+    } catch (err) {
+      console.error("❌ Redis setEx error:", err);
+    }
 
     return res.status(200).send(responseData);
   } catch (error) {

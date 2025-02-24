@@ -22,6 +22,7 @@ export const addProductValidationSchema = Joi.object({
   freeShipping: Joi.boolean(),
   quantity: Joi.number().required().min(1).integer(),
   color: Joi.array().items(Joi.string().lowercase()),
+  tags: Joi.array().items(Joi.string().trim()).optional(),
 });
 
 export const paginationDetailValidationSchema = Joi.object({
