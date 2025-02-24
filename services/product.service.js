@@ -6,7 +6,29 @@ import {
 } from "../middlewares/product.validation.js";
 import { Product } from "../models/product.model.js";
 import { convertDollarToCents } from "../utils/utils.js";
+import redis from "redis";
+const client = redis.createClient(); // Connect to Redis
 
+// Function to generate a unique cache key based on request parameters
+const generateCacheKey = (input) => {
+  const { searchText, minPrice, maxPrice, category, page, limit } = input;
+  return `products:${searchText || ""}:${minPrice || ""}:${maxPrice || ""}:${
+    category?.join(",") || ""
+  }:${page}:${limit}`;
+};
+client.on("error", (err) => {
+  console.error("❌ Redis error:", err);
+});
+
+// Connect to Redis
+client
+  .connect()
+  .then(() => {
+    console.log("✅ Connected to Redis");
+  })
+  .catch((err) => {
+    console.error("❌ Failed to connect to Redis:", err);
+  });
 const createProduct = async (req, res) => {
   const newProduct = req.body;
   try {
@@ -127,6 +149,16 @@ const getBuyerProduct = async (req, res) => {
       return res.status(400).send({ message: error.message });
     }
 
+    // Generate a unique cache key
+    const cacheKey = generateCacheKey(input);
+
+    // Check if data is in Redis cache
+    const cachedData = await client.get(cacheKey);
+    if (cachedData) {
+      console.log("Returning cached data");
+      return res.status(200).send(JSON.parse(cachedData));
+    }
+
     // Calculate skip
     const skip = (input.page - 1) * input.limit;
 
@@ -180,7 +212,13 @@ const getBuyerProduct = async (req, res) => {
       console.log("⚠️ No products found for:", match);
     }
 
-    return res.status(200).send({ products, totalPage });
+    // Prepare response data
+    const responseData = { products, totalPage };
+
+    // Store data in Redis cache with a 10-minute expiration
+    await client.setEx(cacheKey, 600, JSON.stringify(responseData));
+
+    return res.status(200).send(responseData);
   } catch (error) {
     console.error("❌ Error in getBuyerProduct:", error);
     return res.status(500).send({ message: "Internal server error." });
@@ -288,6 +326,45 @@ const getLatestProduct = async (req, res) => {
 
   return res.status(200).send(products);
 };
+const searchProduct = async (req, res) => {
+  try {
+    const { page, limit } = req.body || {};
+    const { q } = req.query; // e.g., "?q=phone"
+    if (!q)
+      return res.status(400).json({ message: "Search query is required" });
+
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 10;
+    const skip = (pageNum - 1) * limitNum;
+
+    console.log("Running query...");
+
+    // Search using text index
+    const products = await Product.find(
+      { $text: { $search: q } },
+      { score: { $meta: "textScore" } } // Include text search score
+    )
+      .sort({ score: { $meta: "textScore" } }) // Sort by relevance
+      .skip(skip)
+      .limit(limitNum)
+      .select("name price category company"); // Select specific fields
+    const totalProducts = await Product.countDocuments({
+      $text: { $search: q },
+    });
+
+    console.log("Query result:", { products, totalProducts });
+
+    res.json({
+      products,
+      totalProducts,
+      currentPage: pageNum,
+      totalPages: Math.ceil(totalProducts / limitNum),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
 export {
   createProduct,
   deleteProduct,
@@ -296,4 +373,5 @@ export {
   getBuyerProduct,
   editProductDetails,
   getLatestProduct,
+  searchProduct,
 };

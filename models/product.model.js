@@ -84,7 +84,7 @@ const productSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
-
+productSchema.index({ name: "text", description: "text" });
 // create table/model
 
 export const Product = mongoose.model("Product", productSchema);
