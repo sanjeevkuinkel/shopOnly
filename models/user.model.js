@@ -66,6 +66,12 @@ const userSchema = new mongoose.Schema(
     passwordChangedAt: {
       type: Date, // This will store when the password was last changed
     },
+    cart: [
+      {
+        productId: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
+        quantity: { type: Number, default: 1 },
+      },
+    ],
   },
   {
     timestamps: true,
