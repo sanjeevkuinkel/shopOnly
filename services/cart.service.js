@@ -167,8 +167,6 @@ const checkout = async (req, res) => {
   const { userId } = req.body;
 
   try {
-    console.log("Request body:", req.body);
-
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ message: "Invalid userId." });
     }
@@ -182,8 +180,6 @@ const checkout = async (req, res) => {
     const cartItems = await Cart.find({ userId })
       .populate("productId", "name price") // Ensure Product schema has 'price'
       .lean();
-
-    console.log("Cart items before checkout:", cartItems);
 
     if (!cartItems.length) {
       return res
@@ -202,8 +198,6 @@ const checkout = async (req, res) => {
       (sum, item) => sum + item.quantity * item.price,
       0
     );
-    console.log("Order items:", orderItems);
-    console.log("Total amount:", total);
 
     // Save the order
     const order = new Order({

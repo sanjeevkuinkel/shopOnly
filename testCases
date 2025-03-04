@@ -1,0 +1,77 @@
+//! daily report
+Seller - Successful Daily Report (No Product Filter)
+{{baseUrl}}/reports/daily?date=2025-03-03
+
+Admin - Successful Daily Report (No Product Filter)
+{{baseUrl}}/reports/daily?date=2025-03-03
+
+Seller - Daily Report with Product Filter
+{{baseUrl}}/reports/daily?date=2025-03-04&productId=67c5a86721d778468e3ca5e1
+ Missing Date Parameter
+{{baseUrl}}/reports/daily
+
+Invalid Date Format
+{{baseUrl}}/reports/daily?date=2025-13-01
+
+Invalid Date Value
+{{baseUrl}}/reports/daily?date=2025-02-30
+
+Seller - No Sales on Date
+{{baseUrl}}/reports/daily?date=2025-04-01
+
+Invalid Product ID
+{{baseUrl}}/reports/daily?date=2025-03-03&productId=invalid-id
+
+Seller - No Products Owned
+{{baseUrl}}/reports/daily?date=2025-03-03
+
+Invalid Token
+{{baseUrl}}/reports/daily?date=2025-03-03
+
+
+
+totalReport
+Seller - Successful Report
+{{baseUrl}}/reports/total?startDate=2025-03-01&endDate=2025-03-03
+
+Admin - Successful Report
+{{baseUrl}}/reports/total?startDate=2025-03-01&endDate=2025-03-03 
+
+Seller - Report with Product Filter
+{{baseUrl}}/reports/total?startDate=2025-03-01&endDate=2025-03-04&product=67c5a86721d778468e3ca5e1
+
+admin - Report with Product Filter
+{{baseUrl}}/reports/total?startDate=2025-03-01&endDate=2025-03-04&product=67c5a86721d778468e3ca5e1
+
+Missing Date Parameters
+{{baseUrl}}/reports/total
+
+Invalid Date Format
+{{baseUrl}}/reports/total?startDate=2025-13-01&endDate=2025-13-03
+
+Seller - No Sales in Period
+{{baseUrl}}/reports/total?startDate=2025-04-01&endDate=2025-04-03
+
+Seller - CSV Export
+{{baseUrl}}/reports/total?startDate=2025-03-01&endDate=2025-03-03&exportFormat=csv
+
+Admin - PDF Export
+{{baseUrl}}/reports/total?startDate=2025-03-01&endDate=2025-03-03&exportFormat=pdf
+
+Invalid Token
+{{baseUrl}}/reports/total?startDate=2025-03-01&endDate=2025-03-03
+add invalid token
+
+
+monthlyTrends
+specific month
+{{baseUrl}}/reports/trends?year=2025&month=3
+
+Seller - Successful Trend Report
+{{baseUrl}}/reports/trends?year=2025
+
+Admin - Successful Trend Report
+{{baseUrl}}/reports/trends?year=2025
+
+Invalid Year
+{{baseUrl}}/reports/trends?year=invalid

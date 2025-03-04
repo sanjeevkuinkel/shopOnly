@@ -4,6 +4,7 @@ import "dotenv/config";
 import userRoutes from "./routes/user.route.js";
 import productRoutes from "./routes/product.route.js";
 import orderRoutes from "./routes/cart.route.js";
+import reportRoutes from "./routes/report.route.js";
 import morgan from "morgan";
 import { v4 as uuidv4 } from "uuid";
 import { initializePassport, ensureAuthenticated } from "./auth2.0.js"; // Import from auth.js
@@ -55,6 +56,7 @@ app.use(express.json()); //this should be before route definition because route 
 app.use(userRoutes);
 app.use(productRoutes);
 app.use(orderRoutes);
+app.use(reportRoutes);
 app.listen(port, () => {
   console.log(`Server is Listening on Port http://localhost:${port}`);
 });
