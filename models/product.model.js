@@ -31,6 +31,11 @@ const productSchema = new mongoose.Schema(
       minlength: 2,
       maxlength: 55,
     },
+    costPrice: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
 
     price: {
       type: Number,
@@ -74,6 +79,11 @@ const productSchema = new mongoose.Schema(
       type: [String],
       required: false,
     },
+    marginCategory: {
+      type: String,
+      enum: ["High-Margin", "Low-Margin"],
+      default: "Low-Margin",
+    },
 
     inStock: {
       type: Boolean,
@@ -81,6 +91,7 @@ const productSchema = new mongoose.Schema(
     },
     tags: [String],
   },
+
   {
     timestamps: true,
   }

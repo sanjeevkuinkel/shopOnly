@@ -12,4 +12,5 @@ router.post("/cart/add", isBuyer, addToCart);
 router.post("/cart/remove", isBuyer, removeCart);
 router.get("/cart", isBuyer, getCart);
 router.post("/checkout", isBuyer, checkout);
+
 export default router;

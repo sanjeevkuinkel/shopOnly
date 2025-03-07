@@ -1,13 +1,19 @@
-import mongoose from "mongoose";
-import { Order } from "../models/order.model.js";
-import { calculateProductSales } from "../utils/saleCalculator.js";
-import { Product } from "../models/product.model.js";
-import Search from "../models/search.model.js";
-import ExcelJS from "exceljs";
-import PDFDocument from "pdfkit";
-import fs from "fs";
 import { createObjectCsvWriter } from "csv-writer";
+import ExcelJS from "exceljs";
+import fs from "fs";
+import mongoose from "mongoose";
+import PDFDocument from "pdfkit";
 import { promisify } from "util";
+import { Order } from "../models/order.model.js";
+import { Product } from "../models/product.model.js";
+import { calculateProfitability } from "../utils/grossProfitAndProfitMargin.js";
+import { categorizeProducts } from "../utils/highLowMarginProduct.js";
+import { calculateProductSales } from "../utils/saleCalculator.js";
+import { getTopSearchedProducts } from "../utils/topSearchedProduct.js";
+import ScheduledReport from "../models/schedule.report.model.js";
+import { analyzeCustomerSales } from "../utils/analyzeCustomerSales.js";
+import { analyzeTopCustomerSegments } from "../utils/analyzeTopCustomerSegments.js";
+
 const unlinkAsync = promisify(fs.unlink);
 // Day-wise report endpoint (dynamic with products)
 const dailyReport = async (req, res) => {
@@ -233,12 +239,12 @@ const totalReport = async (req, res) => {
         : { $elemMatch: { productId: productObjectId } };
     }
 
-    console.log("Order Query:", JSON.stringify(query, null, 2));
+    // console.log("Order Query:", JSON.stringify(query, null, 2));
     const orders = await Order.find(query).populate(
       "items.productId",
       "name price"
     );
-    console.log("Orders found:", orders.length);
+    // console.log("Orders found:", orders.length);
 
     if (orders.length === 0) {
       return res
@@ -277,18 +283,8 @@ const totalReport = async (req, res) => {
       .slice(0, 10);
 
     // Top 10 searched products with role-based filtering
-    const searchQuery = {
-      timestamp: { $gte: start, $lte: end },
-    };
-    if (req.userInfo.role === "seller") {
-      searchQuery.userId = req.userInfo._id;
-    }
-    const topSearched = await Search.aggregate([
-      { $match: searchQuery },
-      { $group: { _id: "$term", count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 10 },
-    ]);
+    const role = req.userInfo?.role || null; // Optional: Filter by role
+    const topSearchedProducts = await getTopSearchedProducts(start, end, role);
 
     const report = {
       period: `${startDate} to ${endDate}`,
@@ -296,7 +292,7 @@ const totalReport = async (req, res) => {
       totalProductsSold,
       productBreakdown: productSales,
       topSellingProducts: topProducts,
-      topSearchedProducts: topSearched.map((s) => ({
+      topSearchedProducts: topSearchedProducts.map((s) => ({
         term: s._id,
         count: s.count,
       })),
@@ -525,4 +521,217 @@ const trendReport = async (req, res) => {
     });
   }
 };
-export { dailyReport, totalReport, trendReport };
+//Sales Growth Comparison (YoY and MoM)
+const yearAndMonthGrowth = async (req, res) => {
+  try {
+    const { startDate, endDate, compareStartDate, compareEndDate } = req.query;
+
+    // Validate date parameters
+    if (!startDate || !endDate || !compareStartDate || !compareEndDate) {
+      return res
+        .status(400)
+        .json({ error: "All date parameters are required" });
+    }
+
+    // Convert dates to Date objects
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const compareStart = new Date(compareStartDate);
+    const compareEnd = new Date(compareEndDate);
+
+    // Validate date values
+    if (isNaN(start.getTime())) {
+      return res.status(400).json({ error: "Invalid startDate" });
+    }
+    if (isNaN(end.getTime())) {
+      return res.status(400).json({ error: "Invalid endDate" });
+    }
+    if (isNaN(compareStart.getTime())) {
+      return res.status(400).json({ error: "Invalid compareStartDate" });
+    }
+    if (isNaN(compareEnd.getTime())) {
+      return res.status(400).json({ error: "Invalid compareEndDate" });
+    }
+    if (start >= end) {
+      return res
+        .status(400)
+        .json({ error: "startDate must be before endDate" });
+    }
+    if (compareStart >= compareEnd) {
+      return res
+        .status(400)
+        .json({ error: "compareStartDate must be before compareEndDate" });
+    }
+
+    // Calculate sales for the current date range
+    const currentSales = await Order.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: start, $lt: end },
+          status: "completed",
+        },
+      },
+      { $group: { _id: null, totalSales: { $sum: "$total" } } },
+    ]);
+
+    // Calculate sales for the comparison date range
+    const compareSales = await Order.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: compareStart, $lt: compareEnd },
+          status: "completed",
+        },
+      },
+      { $group: { _id: null, totalSales: { $sum: "$total" } } },
+    ]);
+
+    // Calculate growth percentage
+    const currentTotal = currentSales[0]?.totalSales || 0;
+    const compareTotal = compareSales[0]?.totalSales || 0;
+    const growth = ((currentTotal - compareTotal) / (compareTotal || 1)) * 100;
+
+    res.json({
+      current: {
+        startDate: startDate,
+        endDate: endDate,
+        totalSales: currentTotal,
+      },
+      compare: {
+        startDate: compareStartDate,
+        endDate: compareEndDate,
+        totalSales: compareTotal,
+      },
+      growth: growth.toFixed(2) + "%",
+    });
+  } catch (error) {
+    console.error("Error calculating sales growth:", error);
+    res.status(500).json({ error: "Error calculating sales growth" });
+  }
+};
+const profitabilityAnalysis = async (req, res) => {
+  try {
+    // Fetch all products from the database
+    const products = await Product.find({});
+
+    // Calculate gross profit and profit margin for each product
+    const productsWithProfitability = calculateProfitability(products);
+
+    // Categorize products as high-margin or low-margin
+    const categorizedProducts = categorizeProducts(productsWithProfitability);
+
+    // Return the results
+    res.json(categorizedProducts);
+  } catch (error) {
+    console.error("Error in profitability analysis:", error);
+    res.status(500).json({ error: "Failed to perform profitability analysis" });
+  }
+};
+const getProductSalesHistory = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    // Fetch orders that include the specified product
+    const salesHistory = await Order.find({
+      "items.productId": productId,
+      status: "completed", // Only include completed orders
+    }).populate("items.productId", "name price");
+
+    if (salesHistory.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No sales history found for this product" });
+    }
+
+    // Format the response
+    const formattedSalesHistory = salesHistory.map((order) => ({
+      orderId: order._id,
+      date: order.createdAt,
+      totalAmount: order.total,
+      items: order.items.filter(
+        (item) => item.productId._id.toString() === productId
+      ),
+    }));
+
+    res.json(formattedSalesHistory);
+  } catch (error) {
+    console.error("Error fetching product sales history:", error);
+    res.status(500).json({ error: "Failed to fetch product sales history" });
+  }
+};
+const scheduleReport = async (req, res) => {
+  const { userId, frequency, reportType, email } = req.body;
+
+  try {
+    // Validate input
+    if (!userId || !frequency || !reportType || !email) {
+      return res.status(400).json({ message: "All fields are required." });
+    }
+
+    // Calculate the next run date
+    const now = new Date();
+    let nextRunDate;
+    switch (frequency) {
+      case "daily":
+        nextRunDate = new Date(now.setDate(now.getDate() + 1));
+        break;
+      case "weekly":
+        nextRunDate = new Date(now.setDate(now.getDate() + 7));
+        break;
+      case "monthly":
+        nextRunDate = new Date(now.setMonth(now.getMonth() + 1));
+        break;
+      default:
+        return res.status(400).json({ message: "Invalid frequency." });
+    }
+
+    // Create the scheduled report
+    const scheduledReport = new ScheduledReport({
+      userId,
+      frequency,
+      reportType,
+      email,
+      nextRun: nextRunDate,
+    });
+    await scheduledReport.save();
+
+    res.status(201).json({
+      message: "Scheduled report created successfully.",
+      report: scheduledReport,
+    });
+  } catch (error) {
+    console.error("Error creating scheduled report:", error);
+    res.status(500).json({ message: "Error creating scheduled report." });
+  }
+};
+const customerAnalysis = async (req, res) => {
+  const { userId } = req.query;
+
+  try {
+    // Validate input
+    if (!userId) {
+      return res.status(400).json({ message: "userId is required." });
+    }
+
+    // Analyze customer sales
+    const customerSales = await analyzeCustomerSales(userId);
+    const topSegments = await analyzeTopCustomerSegments(userId);
+
+    res.json({
+      customerSales,
+      topSegments,
+    });
+  } catch (error) {
+    console.error("Error in customer analysis:", error);
+    res.status(500).json({ message: "Error generating customer analysis." });
+  }
+};
+export {
+  dailyReport,
+  getProductSalesHistory,
+  profitabilityAnalysis,
+  scheduleReport,
+  totalReport,
+  trendReport,
+  yearAndMonthGrowth,
+  customerAnalysis,
+};

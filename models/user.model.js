@@ -66,10 +66,25 @@ const userSchema = new mongoose.Schema(
     passwordChangedAt: {
       type: Date, // This will store when the password was last changed
     },
+    location: {
+      type: String,
+      required: true, // Add location for customer segmentation
+    },
     cart: [
       {
         productId: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
         quantity: { type: Number, default: 1 },
+      },
+    ],
+    scheduledReports: [
+      {
+        frequency: {
+          type: String,
+          enum: ["daily", "weekly", "monthly"],
+          required: true,
+        },
+        email: { type: String, required: true },
+        lastSent: { type: Date },
       },
     ],
   },

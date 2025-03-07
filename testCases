@@ -74,4 +74,4 @@ Admin - Successful Trend Report
 {{baseUrl}}/reports/trends?year=2025
 
 Invalid Year
-{{baseUrl}}/reports/trends?year=invalid
+    {{baseUrl}}/reports/trends?year=invalid
